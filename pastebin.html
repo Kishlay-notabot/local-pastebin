@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Clipboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #zx9f2_status {
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        #qr7t3_input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 16px; /* Larger font size */
+            transition: background-color 0.3s; /* Smooth transition for background color */
+        }
+        #hy6m8_items {
+            list-style-type: none;
+            padding: 0;
+        }
+        #hy6m8_items li {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .nk2p5_content {
+            flex-grow: 1;
+            margin-right: 10px;
+            transition: background-color 0.3s; /* Smooth transition for background color */
+        }
+        button {
+            margin-left: 5px;
+        }
+        #timer {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* Media query for larger text box on phones */
+        @media only screen and (max-width: 600px) {
+            #qr7t3_input {
+                font-size: 18px;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="zx9f2_status">Checking status...</div>
+    <input type="text" id="qr7t3_input" placeholder="Paste link or drag & drop image here">
+    <ul id="hy6m8_items"></ul>
+    <div id="timer"></div>
+
+    <script>
+        const apiUrl = ''; //replace with the url where your api+db is hosted 
+        const statusElement = document.getElementById('zx9f2_status');
+        const inputElement = document.getElementById('qr7t3_input');
+        const itemsElement = document.getElementById('hy6m8_items');
+        const timerElement = document.getElementById('timer');
+
+        let lastActivityTime = Date.now();
+        let refreshInterval;
+        let timerInterval;
+
+        function refreshPage() {
+            loadItems();
+        }
+
+        function startRefreshCycle() {
+            clearInterval(refreshInterval);
+            clearInterval(timerInterval);
+            
+            refreshInterval = setInterval(() => {
+                refreshPage();
+            }, 3000);
+
+            let remainingTime = 120;
+            timerElement.textContent = `${remainingTime}s`;
+            timerElement.style.display = 'block';
+
+            timerInterval = setInterval(() => {
+                remainingTime--;
+                timerElement.textContent = `${remainingTime}s`;
+                if (remainingTime <= 0) {
+                    clearInterval(refreshInterval);
+                    clearInterval(timerInterval);
+                    timerElement.style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        function updateLastActivity() {
+            lastActivityTime = Date.now();
+            startRefreshCycle();
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${apiUrl}/status934n2nfsdf`);
+                if (response.ok) {
+                    statusElement.textContent = 'Database online';
+                    statusElement.style.color = 'green';
+                } else {
+                    throw new Error('Status check failed');
+                }
+            } catch (error) {
+                statusElement.textContent = 'Database offline';
+                statusElement.style.color = 'red';
+            }
+        }
+
+        async function loadItems() {
+            const response = await fetch(`${apiUrl}/clipboard924kslfs`);
+            const items = await response.json();
+            itemsElement.innerHTML = '';
+            items.forEach(item => addItemToList(item));
+            inputElement.focus();
+        }
+
+        async function addItem(content, contentType) {
+            const response = await fetch(`${apiUrl}/clipboar0`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, content_type: contentType })
+            });
+            const newItem = await response.json();
+            addItemToList(newItem);
+            inputElement.value = '';
+        }
+
+        async function deleteItem(id) {
+            await fetch(`${apiUrl}/clipboar0?id=${id}`, { method: 'DELETE' });
+            document.getElementById(`item_${id}`).remove();
+        }
+
+        function addItemToList(item) {
+            const li = document.createElement('li');
+            li.id = `item_${item.id}`;
+            
+            const contentElement = document.createElement('div');
+            contentElement.classList.add('nk2p5_content');
+            
+            if (item.content_type === 'text') {
+                contentElement.textContent = item.content;
+            } else if (item.content_type === 'image') {
+                const img = document.createElement('img');
+                img.src = item.content;
+                img.style.maxWidth = '200px';
+                contentElement.appendChild(img);
+            }
+            
+            li.appendChild(contentElement);
+
+            const copyButton = document.createElement('button');
+            copyButton.textContent = 'Copy';
+            copyButton.onclick = async () => {
+                try {
+                    if (item.content_type === 'text') {
+                        await navigator.clipboard.writeText(item.content);
+                        highlightElement(contentElement, 'red');
+                    } else if (item.content_type === 'image') {
+                        const response = await fetch(item.content);
+                        const blob = await response.blob();
+                        const clipboardItem = new ClipboardItem({ [blob.type]: blob });
+                        await navigator.clipboard.write([clipboardItem]);
+                        highlightElement(contentElement, 'red');
+                    }
+                } catch (error) {
+                    alert('Copy failed, please try again.');
+                    console.error('Copy failed:', error);
+                }
+            };
+            li.appendChild(copyButton);
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.onclick = () => deleteItem(item.id);
+            li.appendChild(deleteButton);
+
+            itemsElement.appendChild(li);
+        }
+
+        function highlightElement(element, color) {
+            element.style.backgroundColor = color;
+            setTimeout(() => {
+                element.style.backgroundColor = ''; // Reset after 1 second
+            }, 1000);
+        }
+
+        inputElement.addEventListener('paste', async (e) => {
+            e.preventDefault();
+            const pastedData = e.clipboardData.getData('text');
+            await addItem(pastedData, 'text');
+        });
+
+        inputElement.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter' && inputElement.value.trim() !== '') {
+                highlightElement(inputElement, 'green');
+                await addItem(inputElement.value.trim(), 'text');
+            }
+        });
+
+        inputElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        inputElement.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    await addItem(event.target.result, 'image');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        window.addEventListener('focus', updateLastActivity);
+
+        checkStatus();
+        setInterval(checkStatus, 60000);
+        loadItems();
+        updateLastActivity();
+    </script>
+</body>
+</html>
